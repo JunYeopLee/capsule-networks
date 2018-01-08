@@ -19,6 +19,6 @@ I tried to implement the idea in [Dynamic Routing Between Capsules](https://arxi
   * `eval.py` is for evaluation.
 
 ## Results
-<img src="figure/total_loss.png">
-<img src="figure/margin_loss.png">
-<img src="figure/reconstruction_loss.png">
+<img src="figure/total_loss.png" style="width: 200px;">
+<img src="figure/margin_loss.png" style="width: 200px;">
+<img src="figure/reconstruction_loss.png" style="width: 200px;">
