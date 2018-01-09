@@ -36,3 +36,5 @@ $ python eval.py
 | Epoch     | 76     |
 |-----------|--------|
 | Test Acc. | 99.128 |
+
+<img src="figure/test_000.png" width=250px> <img src="figure/test_005.png" width=250px> <img src="figure/test_010.png" width=250px> 
