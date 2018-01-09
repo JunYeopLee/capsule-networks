@@ -19,13 +19,10 @@ I tried to implement the idea in [Dynamic Routing Between Capsules](https://arxi
   * `eval.py` is for evaluation.
 
 ## Results
-<img src="figure/total_loss.png" width=250px>
-<img src="figure/margin_loss.png" width=250px>
-<img src="figure/reconstruction_loss.png" width=250px>
+<img src="figure/margin_loss.png" width=250px> <img src="figure/reconstruction_loss.png" width=250px> <img src="figure/total_loss.png" width=250px>
 
 
 - test acc
-------------
 |Epoch|76|
 |:----:|:----:|
 |test acc|99.128|
