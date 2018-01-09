@@ -18,11 +18,11 @@ I tried to implement the idea in [Dynamic Routing Between Capsules](https://arxi
   * `train.py` has the model.
   * `eval.py` is for evaluation.
 
-## Results
+## Training
 <img src="figure/margin_loss.png" width=250px> <img src="figure/reconstruction_loss.png" width=250px> <img src="figure/total_loss.png" width=250px>
 
 
-- test acc
+## Result
 ------------
 |Epoch|76|
 |:----:|:----:|
