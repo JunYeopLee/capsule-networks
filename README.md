@@ -23,6 +23,7 @@ I tried to implement the idea in [Dynamic Routing Between Capsules](https://arxi
 
 
 - test acc
+------------
 |Epoch|76|
 |:----:|:----:|
 |test acc|99.128|
