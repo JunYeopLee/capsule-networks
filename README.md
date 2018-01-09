@@ -23,7 +23,6 @@ I tried to implement the idea in [Dynamic Routing Between Capsules](https://arxi
 
 
 ## Result
-------------
-|Epoch|76|
-|:----:|:----:|
-|test acc|99.128|
+| Epoch     | 76     |
+|-----------|--------|
+| Test Acc. | 99.128 |
