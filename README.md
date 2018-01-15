@@ -1,8 +1,7 @@
 # A Tensorflow implementation of Capsule networks
 
 ## Requirements
-  * NumPy >= 1.11.1
-  * TensorFlow >= 1.4 (Probably 1.3 should work, too, though I didn't test it)
+  * tensorflow >= 1.4 (Probably 1.3 should work, too, though I didn't test it)
   * numpy
   * pillow
   * scipy
