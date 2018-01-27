@@ -33,9 +33,9 @@ $ python eval.py
 
 ## Result
 ### Classification
-| Epoch     | 76     |
+| Epoch     | 10     |
 |-----------|--------|
-| Test Acc. | 99.128 |
+| Test Acc. | 99.278 |
 
 ### Reconstruction
 <img src="figure/test_000.png" width=200px> <img src="figure/test_005.png" width=200px> <img src="figure/test_010.png" width=200px> 
