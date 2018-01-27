@@ -4,3 +4,4 @@ class Config:
     logdir = 'logdir/'
     dataset = 'data/mnist'
     num_epochs = 500
+    eps = 1e-9
