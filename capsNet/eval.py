@@ -22,8 +22,9 @@ def main(_):
         sv = tf.train.Supervisor(logdir=conf.logdir)
         with sv.managed_session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
             # Restore parameters
-            sv.saver.restore(sess, tf.train.latest_checkpoint(conf.logdir))
-            print('[+] Graph is restored from ' + conf.logdir)
+            checkpoint_path = tf.train.latest_checkpoint(conf.logdir)
+            sv.saver.restore(sess, checkpoint_path)
+            print('[+] Graph is restored from ' + checkpoint_path)
 
             # Make results directory
             if not os.path.exists('results'):
