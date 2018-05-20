@@ -17,6 +17,7 @@ class CapsNet:
     def build_model(self, is_training=False):
         # Input Layer, Reshape to [batch, height, width, channel]
         self.input = tf.reshape(self.x, [conf.batch_size, 28, 28, 1])
+        tf.summary.image('image', self.input, 10)
         assert self.input.get_shape() == (conf.batch_size, 28, 28, 1)
 
         # ReLU Conv1
@@ -25,8 +26,10 @@ class CapsNet:
                 inputs=self.input,
                 filters=256,
                 kernel_size=9,
-                activation=tf.nn.relu,
             )
+            biases = tf.get_variable('biases', [256], initializer=tf.constant_initializer(0.0))
+            pre_activation = tf.nn.bias_add(conv1, biases, data_format='NHWC')
+            conv1 = tf.nn.relu(pre_activation)
             assert conv1.get_shape() == (conf.batch_size, 20, 20, 256)
 
         # Primary Caps
@@ -65,8 +68,8 @@ class CapsNet:
 
         # Margin Loss
         with tf.variable_scope('margin_loss'):
-            self.mloss = self.margin_loss(
-                logits=self.logits,
+            self.mloss = self._margin_loss(
+                raw_logits=self.logits,
                 labels=self.y,
             )
 
@@ -117,8 +120,11 @@ class CapsNet:
             filters=32*8,
             kernel_size=9,
             strides=2,
-            activation=tf.nn.relu,
+            #activation=tf.nn.relu,
         )
+        biases = tf.get_variable('biases', [32*8], initializer=tf.constant_initializer(0.0))
+        convs = tf.nn.bias_add(convs, biases, data_format='NHWC')
+
         convs = tf.reshape(convs, [conf.batch_size, -1, 8])
         assert convs.get_shape() == (conf.batch_size, 32*6*6, 8)
 
@@ -133,10 +139,11 @@ class CapsNet:
         # Reshape input
         u = tf.reshape(inputs, [conf.batch_size, 32*6*6, 1, 8, 1])
         u = tf.tile(u, [1, 1, num_caps, 1, 1])  # [batch_size, 32*6*6, num_caps, 8, 1]
-        
+
         # Dynamic routing
         bij = tf.zeros((32*6*6, num_caps), name='b')
-        wij = tf.get_variable('wij', shape=(1, 32*6*6, num_caps, 8, 16), initializer=tf.contrib.layers.xavier_initializer())
+#        wij = tf.get_variable('wij', shape=(1, 32*6*6, num_caps, 8, 16), initializer=tf.contrib.layers.xavier_initializer())
+        wij = tf.get_variable('wij', shape=(1, 32*6*6, num_caps, 8, 16), initializer=tf.truncated_normal_initializer(stddev=0.01))
         w = tf.tile(wij, [conf.batch_size, 1, 1, 1, 1])  # [batch_size, 32*6*6, num_caps, 8, 16]
         # bij = tf.tile(tf.zeros((32, num_caps), name='b'), [6*6, 1])  # [32*6*6, num_caps]
         # wij = tf.get_variable('wij', shape=(1, 32, num_caps, 8, 16))
@@ -145,8 +152,11 @@ class CapsNet:
         # uhat
         uhat = tf.matmul(u, w, transpose_a=True)  # [batch_size, 32*6*6, num_caps, 1, 16]
         uhat = tf.reshape(uhat, [conf.batch_size, 32*6*6, num_caps, 16])  # [batch_size, 32*6*6, num_caps, 16]
-        uhat_stop_grad = tf.stop_gradient(uhat)
+        #uhat_stop_grad = tf.stop_gradient(uhat)
         assert uhat.get_shape() == (conf.batch_size, 32*6*6, num_caps, 16)
+
+        # biases
+        biases = tf.get_variable('biases', [1, num_caps, 16], initializer=tf.constant_initializer(0.0))
 
         for r in range(num_iters):
             with tf.variable_scope('routing_iter_' + str(r)):
@@ -156,22 +166,33 @@ class CapsNet:
                               [conf.batch_size, 1, 1, 1])  # [batch_size, 32*6*6, num_caps, 1]
                 assert cij.get_shape() == (conf.batch_size, 32*6*6, num_caps, 1)
 
-                if r == num_iters-1: 
-                    # s, v
-                    s = tf.reduce_sum(tf.multiply(uhat, cij), axis=1)  # [batch_size, num_caps, 16]
-                    v = self.squash(s)  # [batch_size, num_caps, 16]
-                    assert v.get_shape() == (conf.batch_size, num_caps, 16)
-                else: 
-                    # s, v (with no gradient propagation)
-                    s = tf.reduce_sum(tf.multiply(uhat_stop_grad, cij), axis=1)  # [batch_size, num_caps, 16]
-                    v = self.squash(s)  # [batch_size, num_caps, 16]
-                    assert v.get_shape() == (conf.batch_size, num_caps, 16)
-                    
-                    # update b
-                    vr = tf.reshape(v, [conf.batch_size, 1, num_caps, 16])
-                    a = tf.reduce_sum(tf.reduce_sum(tf.multiply(uhat_stop_grad, vr), axis=0), axis=2)  # [32*6*6, num_caps]
-                    bij = bij + a
-                    assert a.get_shape() == (32*6*6, num_caps)
+                # s, v
+                s = tf.reduce_sum(tf.multiply(uhat, cij), axis=1) + biases  # [batch_size, num_caps, 16]
+                v = self.squash(s)  # [batch_size, num_caps, 16]
+                assert v.get_shape() == (conf.batch_size, num_caps, 16)
+
+                # update b
+                vr = tf.reshape(v, [conf.batch_size, 1, num_caps, 16])
+                a = tf.reduce_sum(tf.reduce_sum(tf.multiply(uhat, vr), axis=0), axis=2)  # [32*6*6, num_caps]
+                bij = bij + a
+                assert a.get_shape() == (32*6*6, num_caps)
+
+#                if r == num_iters-1:
+#                    # s, v
+#                    s = tf.reduce_sum(tf.multiply(uhat, cij), axis=1) + biases  # [batch_size, num_caps, 16]
+#                    v = self.squash(s)  # [batch_size, num_caps, 16]
+#                    assert v.get_shape() == (conf.batch_size, num_caps, 16)
+#                else:
+#                    # s, v (with no gradient propagation)
+#                    s = tf.reduce_sum(tf.multiply(uhat_stop_grad, cij), axis=1) + biases  # [batch_size, num_caps, 16]
+#                    v = self.squash(s)  # [batch_size, num_caps, 16]
+#                    assert v.get_shape() == (conf.batch_size, num_caps, 16)
+#
+#                    # update b
+#                    vr = tf.reshape(v, [conf.batch_size, 1, num_caps, 16])
+#                    a = tf.reduce_sum(tf.reduce_sum(tf.multiply(uhat_stop_grad, vr), axis=0), axis=2)  # [32*6*6, num_caps]
+#                    bij = bij + a
+#                    assert a.get_shape() == (32*6*6, num_caps)
         return v
 
     def squash(self, s):
@@ -186,15 +207,20 @@ class CapsNet:
         assert targets.get_shape() == (conf.batch_size)
 
         with tf.variable_scope('masking'):
-            enum = tf.cast(tf.range(conf.batch_size), dtype=tf.int64)
-            enum_indices = tf.concat(
-                [tf.expand_dims(enum, 1), tf.expand_dims(targets, 1)],
-                axis=1
-            )
-            assert enum_indices.get_shape() == (conf.batch_size, 2)
+#            enum = tf.cast(tf.range(conf.batch_size), dtype=tf.int64)
+#            enum_indices = tf.concat(
+#                [tf.expand_dims(enum, 1), tf.expand_dims(targets, 1)],
+#                axis=1
+#            )
+#            assert enum_indices.get_shape() == (conf.batch_size, 2)
+#            masked_inputs = tf.gather_nd(inputs, enum_indices)
+#            assert masked_inputs.get_shape() == (conf.batch_size, 16)
+            capsule_mask = tf.one_hot(targets, depth=10, on_value=1.0, off_value=0.0, axis=-1)
+            capsule_mask = tf.expand_dims(capsule_mask, axis=-1)
+            assert capsule_mask.get_shape() == (conf.batch_size, 10, 1)
 
-            masked_inputs = tf.gather_nd(inputs, enum_indices)
-            assert masked_inputs.get_shape() == (conf.batch_size, 16)
+            masked_inputs = tf.reshape(inputs * capsule_mask, [conf.batch_size, -1])
+            assert masked_inputs.get_shape() == (conf.batch_size, 16*10)
 
         with tf.variable_scope('reconstruction'):
             fc_relu1 = tf.contrib.layers.fully_connected(
@@ -216,19 +242,31 @@ class CapsNet:
             )
             assert fc_sigmoid.get_shape() == (conf.batch_size, 784)
             recons = tf.reshape(fc_sigmoid, shape=(conf.batch_size, 28, 28))
-
+            image_remake = tf.reshape(fc_sigmoid, shape=(conf.batch_size, 28, 28, 1))
+            tf.summary.image('reconstruction', image_remake, 10)
         return recons
 
-    def margin_loss(self, logits, labels, mplus=0.9, mminus=0.1, lambd=0.5):
-        left = tf.square(tf.maximum(0., mplus - logits))
-        right = tf.square(tf.maximum(0., logits - mminus))
-        assert left.get_shape() == (conf.batch_size, 10)
-        assert right.get_shape() == (conf.batch_size, 10)
+#    def margin_loss(self, logits, labels, mplus=0.9, mminus=0.1, lambd=0.5):
+#        left = tf.square(tf.maximum(0., mplus - logits))
+#        right = tf.square(tf.maximum(0., logits - mminus))
+#        assert left.get_shape() == (conf.batch_size, 10)
+#        assert right.get_shape() == (conf.batch_size, 10)
+#
+#        T_k = labels
+#        L_k = T_k * left + lambd * (1-T_k) * right
+#        mloss = tf.reduce_mean(tf.reduce_sum(L_k, axis=1))
+#        return mloss
 
-        T_k = labels
-        L_k = T_k * left + lambd * (1-T_k) * right
-        mloss = tf.reduce_mean(tf.reduce_sum(L_k, axis=1))
+    def _margin_loss(self, raw_logits, labels, margin=0.4, downweight=0.5):
+        logits = raw_logits - 0.5
+        positive_cost = labels * tf.cast(tf.less(logits, margin),
+                tf.float32) * tf.pow(logits - margin, 2)
+        negative_cost = (1 - labels) * tf.cast(
+                tf.greater(logits, -margin), tf.float32) * tf.pow(logits + margin, 2)
+        mloss = 0.5 * positive_cost + downweight * 0.5 * negative_cost
+        mloss = tf.reduce_mean(tf.reduce_sum(mloss, axis=1))
         return mloss
+
 
     def reconstruction_loss(self, origin, decoded):
         origin = tf.reshape(origin, shape=(conf.batch_size, -1))
